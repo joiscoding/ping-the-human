@@ -108,6 +108,7 @@ export const LeadResponseSchema = z.object({
   isDuplicate: z.boolean(),
   speedToLeadMs: z.number().nullable(),
   messageId: z.string().uuid().optional(),
+  emailSent: z.boolean().optional(),
 });
 
 export type LeadResponse = z.infer<typeof LeadResponseSchema>;

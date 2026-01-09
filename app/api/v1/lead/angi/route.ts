@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { leads, duplicateLeads, type Lead } from "@/db/schema";
 import { AngiLeadSchema, type LeadResponse } from "@/lib/schemas";
 import { findOrCreateUser } from "@/lib/user-matcher";
-import { draftIntroMessage } from "@/lib/messaging";
+import { sendIntroMessage } from "@/lib/messaging";
 import { v4 as uuid } from "uuid";
 import { eq } from "drizzle-orm";
 
@@ -17,8 +17,8 @@ import { eq } from "drizzle-orm";
  * 2. Check for duplicate via correlation_id FIRST
  * 3. Find or create user (email OR phone matching)
  * 4. If duplicate: create duplicate record, return early
- * 5. If new: create lead record, draft intro email
- * 6. Return response with speed-to-lead metrics
+ * 5. If new: create lead record, send intro email to user
+ * 6. Return response with speed-to-lead metrics and email status
  */
 export async function POST(request: NextRequest) {
   const receivedAt = new Date();
@@ -134,18 +134,30 @@ export async function POST(request: NextRequest) {
 
     await db.insert(leads).values(newLead);
 
-    // Draft intro message
-    const message = await draftIntroMessage(newLead, user);
+    // Send intro message (draft + send email)
+    const sendResult = await sendIntroMessage(newLead, user);
     const processedAt = new Date();
 
-    // Update lead as processed
+    // Update lead status based on email result
+    const newStatus = sendResult.success ? "processed" : "pending";
     await db
       .update(leads)
-      .set({ status: "processed", processedAt })
+      .set({ status: newStatus, processedAt })
       .where(eq(leads.id, leadId));
 
     // Calculate speed to lead (time from received to processed)
     const speedToLeadMs = processedAt.getTime() - receivedAt.getTime();
+
+    // Log email send result
+    if (sendResult.success) {
+      console.log(
+        `[Email Sent] Lead: ${leadId}, Message: ${sendResult.message?.id}, To: ${user.email}`
+      );
+    } else {
+      console.warn(
+        `[Email Failed] Lead: ${leadId}, Error: ${sendResult.error}`
+      );
+    }
 
     const response: LeadResponse = {
       success: true,
@@ -153,7 +165,8 @@ export async function POST(request: NextRequest) {
       userId: user.id,
       isDuplicate: false,
       speedToLeadMs,
-      messageId: message.id,
+      messageId: sendResult.message?.id,
+      emailSent: sendResult.success,
     };
 
     console.log(
