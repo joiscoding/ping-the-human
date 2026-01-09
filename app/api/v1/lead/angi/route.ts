@@ -93,6 +93,7 @@ export async function POST(request: NextRequest) {
       converted: false,
       receivedAt,
       processedAt: null,
+      speedToLeadMs: null,
     };
 
     await db.insert(leads).values(newLead);
@@ -139,8 +140,21 @@ export async function POST(request: NextRequest) {
     );
 
     return NextResponse.json(response, { status: 201 });
-  } catch (error) {
-    console.error("[Lead Error]", error);
+  } catch (error: unknown) {
+    // Handle unique constraint violation (race condition on duplicate correlationId)
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes("UNIQUE constraint failed") && errorMessage.includes("correlation_id")) {
+      console.warn("[Lead Duplicate Race] CorrelationId already exists, likely race condition");
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Duplicate lead detected",
+        },
+        { status: 409 }
+      );
+    }
+
+    console.error("[Lead Error]", errorMessage);
     return NextResponse.json(
       {
         success: false,

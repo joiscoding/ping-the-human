@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { leads, users, messages } from "@/db/schema";
 import { LeadQuerySchema } from "@/lib/schemas";
-import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
+import { eq, and, gte, lte, sql, desc, inArray, type SQL } from "drizzle-orm";
 
 /**
  * GET /api/v1/lead
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
       parseResult.data;
 
     // Build conditions array
-    const conditions = [];
+    const conditions: SQL<unknown>[] = [];
 
     if (status) {
       conditions.push(eq(leads.status, status));
@@ -86,40 +86,46 @@ export async function GET(request: NextRequest) {
       .offset(offset)
       .all();
 
-    // Get message counts for each lead
-    const leadsWithMessages = await Promise.all(
-      results.map(async ({ lead, user }) => {
-        const messageCount = await db
-          .select({ count: sql<number>`count(*)` })
-          .from(messages)
-          .where(eq(messages.leadId, lead.id))
-          .get();
+    // Get message counts for all leads in a single query (fixes N+1)
+    const leadIds = results.map(({ lead }) => lead.id);
 
-        const inboundCount = await db
-          .select({ count: sql<number>`count(*)` })
+    const messageCounts = leadIds.length > 0
+      ? await db
+          .select({
+            leadId: messages.leadId,
+            total: sql<number>`count(*)`.as("total"),
+            inbound: sql<number>`sum(case when ${messages.direction} = 'inbound' then 1 else 0 end)`.as("inbound"),
+          })
           .from(messages)
-          .where(
-            and(eq(messages.leadId, lead.id), eq(messages.direction, "inbound"))
-          )
-          .get();
+          .where(inArray(messages.leadId, leadIds))
+          .groupBy(messages.leadId)
+          .all()
+      : [];
 
-        return {
-          ...lead,
-          user: user
-            ? {
-                id: user.id,
-                email: user.email,
-                phone: user.phone,
-                firstName: user.firstName,
-                lastName: user.lastName,
-              }
-            : null,
-          // Computed fields (speedToLeadMs is now stored in DB)
-          messageCount: messageCount?.count || 0,
-          hasResponse: (inboundCount?.count || 0) > 0,
-        };
-      })
+    // Create a lookup map for O(1) access
+    const messageCountMap = new Map(
+      messageCounts.map((mc) => [mc.leadId, { total: mc.total, inbound: mc.inbound }])
     );
+
+    // Map results with message counts
+    const leadsWithMessages = results.map(({ lead, user }) => {
+      const counts = messageCountMap.get(lead.id) || { total: 0, inbound: 0 };
+      return {
+        ...lead,
+        user: user
+          ? {
+              id: user.id,
+              email: user.email,
+              phone: user.phone,
+              firstName: user.firstName,
+              lastName: user.lastName,
+            }
+          : null,
+        // Computed fields (speedToLeadMs is now stored in DB)
+        messageCount: counts.total,
+        hasResponse: counts.inbound > 0,
+      };
+    });
 
     // Get total count for pagination
     const totalResult = await db
@@ -138,8 +144,8 @@ export async function GET(request: NextRequest) {
         hasMore: offset + limit < (totalResult?.count || 0),
       },
     });
-  } catch (error) {
-    console.error("[Lead List Error]", error);
+  } catch (error: unknown) {
+    console.error("[Lead List Error]", error instanceof Error ? error.message : error);
     return NextResponse.json(
       {
         success: false,

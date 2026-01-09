@@ -48,8 +48,8 @@ export async function GET() {
         totalLeads: totalResult?.count || 0,
       },
     });
-  } catch (error) {
-    console.error("[Lead Stats Error]", error);
+  } catch (error: unknown) {
+    console.error("[Lead Stats Error]", error instanceof Error ? error.message : error);
     return NextResponse.json(
       {
         success: false,

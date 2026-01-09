@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getMessage, getMessageThread } from "@/lib/messaging";
 import { db } from "@/db";
 import { leads, users } from "@/db/schema";
+import { UUIDParamSchema } from "@/lib/schemas";
 import { eq } from "drizzle-orm";
 
 interface RouteParams {
@@ -16,6 +17,18 @@ interface RouteParams {
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
+
+    // Validate UUID format
+    const parseResult = UUIDParamSchema.safeParse(id);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Invalid message ID format",
+        },
+        { status: 400 }
+      );
+    }
 
     const message = await getMessage(id);
 
@@ -56,8 +69,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       thread,
       threadCount: thread.length,
     });
-  } catch (error) {
-    console.error("[Get Message Error]", error);
+  } catch (error: unknown) {
+    console.error("[Get Message Error]", error instanceof Error ? error.message : error);
     return NextResponse.json(
       {
         success: false,

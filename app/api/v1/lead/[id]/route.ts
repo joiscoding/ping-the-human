@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { leads, users, messages } from "@/db/schema";
+import { UUIDParamSchema } from "@/lib/schemas";
 import { eq, and, ne, desc, asc } from "drizzle-orm";
 
 interface RouteParams {
@@ -20,6 +21,18 @@ interface RouteParams {
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
+
+    // Validate UUID format
+    const parseResult = UUIDParamSchema.safeParse(id);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Invalid lead ID format",
+        },
+        { status: 400 }
+      );
+    }
 
     // Get lead with user
     const result = await db
@@ -112,8 +125,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         otherLeads,
       },
     });
-  } catch (error) {
-    console.error("[Get Lead Error]", error);
+  } catch (error: unknown) {
+    console.error("[Get Lead Error]", error instanceof Error ? error.message : error);
     return NextResponse.json(
       {
         success: false,

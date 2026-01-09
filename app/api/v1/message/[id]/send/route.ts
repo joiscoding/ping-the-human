@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendMessage, getMessage } from "@/lib/messaging";
+import { UUIDParamSchema } from "@/lib/schemas";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -19,6 +20,18 @@ interface RouteParams {
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
+
+    // Validate UUID format
+    const parseResult = UUIDParamSchema.safeParse(id);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Invalid message ID format",
+        },
+        { status: 400 }
+      );
+    }
 
     // First check if message exists
     const message = await getMessage(id);
@@ -58,8 +71,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         { status: statusCode }
       );
     }
-  } catch (error) {
-    console.error("[Send Message Error]", error);
+  } catch (error: unknown) {
+    console.error("[Send Message Error]", error instanceof Error ? error.message : error);
     return NextResponse.json(
       {
         success: false,
@@ -78,6 +91,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
+
+    // Validate UUID format
+    const parseResult = UUIDParamSchema.safeParse(id);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Invalid message ID format",
+        },
+        { status: 400 }
+      );
+    }
 
     const message = await getMessage(id);
 
@@ -101,8 +126,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         externalId: message.externalId,
       },
     });
-  } catch (error) {
-    console.error("[Get Message Status Error]", error);
+  } catch (error: unknown) {
+    console.error("[Get Message Status Error]", error instanceof Error ? error.message : error);
     return NextResponse.json(
       {
         success: false,

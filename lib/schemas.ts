@@ -29,6 +29,12 @@ export const AngiLeadSchema = z.object({
 export type AngiLead = z.infer<typeof AngiLeadSchema>;
 
 // =============================================================================
+// Route Parameter Schemas
+// =============================================================================
+
+export const UUIDParamSchema = z.string().uuid("Invalid ID format");
+
+// =============================================================================
 // Query Parameter Schemas for API Routes
 // =============================================================================
 
