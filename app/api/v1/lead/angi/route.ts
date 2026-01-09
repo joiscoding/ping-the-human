@@ -4,6 +4,7 @@ import { leads, type Lead } from "@/db/schema";
 import { AngiLeadSchema, type LeadResponse } from "@/lib/schemas";
 import { findOrCreateUser } from "@/lib/user-matcher";
 import { sendIntroMessage } from "@/lib/messaging";
+import { checkForDuplicate, recordDuplicateAttempt } from "@/lib/duplicate-detector";
 import { v4 as uuid } from "uuid";
 import { eq } from "drizzle-orm";
 
@@ -41,22 +42,21 @@ export async function POST(request: NextRequest) {
     const angiLead = parseResult.data;
 
     // Check for duplicate FIRST (before creating user or lead)
-    const existingLead = await db
-      .select()
-      .from(leads)
-      .where(eq(leads.correlationId, angiLead.CorrelationId))
-      .get();
+    const duplicateCheck = await checkForDuplicate(angiLead.CorrelationId);
 
-    // If duplicate found, return early without creating anything
-    if (existingLead) {
+    // If duplicate found, record it for rebate tracking and return early WITHOUT inserting
+    if (duplicateCheck.isDuplicate && duplicateCheck.originalLead) {
       console.log(
-        `[Duplicate Detected] Original: ${existingLead.id}, CorrelationId: ${angiLead.CorrelationId}`
+        `[Duplicate Detected] Original: ${duplicateCheck.originalLead.id}, CorrelationId: ${angiLead.CorrelationId}`
       );
+
+      // Record the duplicate attempt for rebate tracking (without inserting into leads table)
+      await recordDuplicateAttempt(duplicateCheck.originalLead.id, angiLead.CorrelationId);
 
       const response: LeadResponse = {
         success: true,
-        leadId: existingLead.id,
-        userId: existingLead.userId,
+        leadId: duplicateCheck.originalLead.id,
+        userId: duplicateCheck.originalLead.userId,
         isDuplicate: true,
         speedToLeadMs: null,
         messageId: undefined,

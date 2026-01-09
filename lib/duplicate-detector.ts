@@ -6,19 +6,19 @@ import { v4 as uuid } from "uuid";
 export interface DuplicateCheckResult {
   isDuplicate: boolean;
   originalLead: Lead | null;
-  duplicateRecord: DuplicateLead | null;
 }
 
 /**
  * Check if a lead is a duplicate based on correlation_id from Angi.
+ * 
+ * This check should be performed BEFORE inserting a new lead.
+ * If a duplicate is detected, the caller should NOT insert the new lead.
  *
  * @param correlationId - The unique correlation ID from Angi
- * @param newLeadId - The ID of the new lead being processed
- * @returns Whether it's a duplicate, the original lead, and the duplicate record
+ * @returns Whether it's a duplicate and the original lead if found
  */
 export async function checkForDuplicate(
-  correlationId: string,
-  newLeadId: string
+  correlationId: string
 ): Promise<DuplicateCheckResult> {
   // Check if a lead with this correlation_id already exists
   const existingLead = await db
@@ -28,19 +28,37 @@ export async function checkForDuplicate(
     .get();
 
   // No duplicate found
-  if (!existingLead || existingLead.id === newLeadId) {
+  if (!existingLead) {
     return {
       isDuplicate: false,
       originalLead: null,
-      duplicateRecord: null,
     };
   }
 
-  // Create duplicate record for rebate tracking
+  // Duplicate found - return the original lead
+  // Note: We do NOT insert the duplicate into the leads table
+  return {
+    isDuplicate: true,
+    originalLead: existingLead,
+  };
+}
+
+/**
+ * Record a duplicate lead attempt for rebate tracking.
+ * Call this AFTER detecting a duplicate to track it for rebate purposes.
+ * 
+ * @param originalLeadId - The ID of the original lead
+ * @param correlationId - The correlation ID that was duplicated
+ * @returns The duplicate record created
+ */
+export async function recordDuplicateAttempt(
+  originalLeadId: string,
+  correlationId: string
+): Promise<DuplicateLead> {
   const duplicateRecord: DuplicateLead = {
     id: uuid(),
-    originalLeadId: existingLead.id,
-    duplicateLeadId: newLeadId,
+    originalLeadId,
+    duplicateLeadId: null, // No lead was created for the duplicate
     matchCriteria: "correlation_id",
     detectedAt: new Date(),
     rebateClaimed: false,
@@ -49,17 +67,7 @@ export async function checkForDuplicate(
 
   await db.insert(duplicateLeads).values(duplicateRecord);
 
-  // Update the new lead status to 'duplicate'
-  await db
-    .update(leads)
-    .set({ status: "duplicate" })
-    .where(eq(leads.id, newLeadId));
-
-  return {
-    isDuplicate: true,
-    originalLead: existingLead,
-    duplicateRecord,
-  };
+  return duplicateRecord;
 }
 
 /**

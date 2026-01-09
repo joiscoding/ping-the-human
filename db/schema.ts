@@ -64,14 +64,13 @@ export const messages = sqliteTable("messages", {
 });
 
 // Duplicate leads table - for rebate tracking
+// Note: duplicateLeadId is nullable because we don't insert duplicate leads into the leads table
 export const duplicateLeads = sqliteTable("duplicate_leads", {
   id: text("id").primaryKey(), // UUID
   originalLeadId: text("original_lead_id")
     .notNull()
     .references(() => leads.id),
-  duplicateLeadId: text("duplicate_lead_id")
-    .notNull()
-    .references(() => leads.id),
+  duplicateLeadId: text("duplicate_lead_id").references(() => leads.id), // Nullable - duplicate not inserted
   matchCriteria: text("match_criteria").notNull(), // e.g., "correlation_id"
   detectedAt: integer("detected_at", { mode: "timestamp" }).notNull(),
   rebateClaimed: integer("rebate_claimed", { mode: "boolean" }).default(false),
