@@ -15,7 +15,8 @@
     "test:unit": "vitest run --dir tests/unit",
     "test:integration": "vitest run --dir tests/integration",
     "test:coverage": "vitest run --coverage",
-    "test:mock": "npx tsx scripts/test-mock-data.ts"
+    "test:mock": "npx tsx scripts/test-mock-data.ts",
+    "test:demo": "npx tsx scripts/test-demo-e2e.ts"
   },
   "dependencies": {
     "better-sqlite3": "^12.5.0",

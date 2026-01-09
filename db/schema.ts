@@ -52,6 +52,7 @@ export const messages = sqliteTable("messages", {
   toAddress: text("to_address").notNull(),
   subject: text("subject"), // nullable - for emails only
   body: text("body").notNull(),
+  htmlBody: text("html_body"), // HTML version of the body for rich email content
   // Status tracking
   status: text("status").notNull().default("draft"), // draft, sent, delivered, failed, received
   externalId: text("external_id"), // Provider tracking ID for future integration

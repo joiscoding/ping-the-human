@@ -20,15 +20,22 @@ export async function draftIntroMessage(
   user: User
 ): Promise<Message> {
   const firstName = user.firstName || "there";
-  const category = lead.category || "your request";
+  const category = (lead.category || "your request").toLowerCase();
+  const city = lead.city || "your area";
+  const bookingLink = `${BOOKING_URL}?leadId=${lead.id}`;
 
   const body = `Hello ${firstName},
 
-We can help with ${category}. And, we are available today.
+We can help with ${category}. And, we are available today to head over to ${city}.
 
-Please book here: ${BOOKING_URL}?leadId=${lead.id}
+Please book here: ${bookingLink}
 
 Netic`;
+
+  const html = `<p>Hello ${firstName},</p>
+<p>We can help with ${category}. And, we are available today to head over to ${city}.</p>
+<p>Please book <a href="${bookingLink}">here</a></p>
+<p>Netic</p>`;
 
   const now = new Date();
   const message: Message = {
@@ -40,6 +47,7 @@ Netic`;
     toAddress: user.email || "",
     subject: `Re: ${category}`,
     body,
+    htmlBody: html,
     status: "draft",
     externalId: null,
     createdAt: now,
@@ -104,6 +112,7 @@ export async function recordInboundMessage(
     toAddress: FROM_EMAIL,
     subject: subject || null,
     body,
+    htmlBody: null,
     status: "received",
     externalId: null,
     createdAt: now,
@@ -205,6 +214,7 @@ export async function sendMessage(messageId: string): Promise<SendMessageResult>
     to: message.toAddress,
     subject: message.subject || "(No Subject)",
     body: message.body,
+    html: message.htmlBody || undefined,
     from: message.fromAddress,
   });
 

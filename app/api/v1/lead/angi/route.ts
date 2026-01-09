@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { leads, duplicateLeads, type Lead } from "@/db/schema";
+import { leads, type Lead } from "@/db/schema";
 import { AngiLeadSchema, type LeadResponse } from "@/lib/schemas";
 import { findOrCreateUser } from "@/lib/user-matcher";
 import { sendIntroMessage } from "@/lib/messaging";
@@ -14,11 +14,10 @@ import { eq } from "drizzle-orm";
  *
  * Flow:
  * 1. Validate incoming payload with Zod
- * 2. Check for duplicate via correlation_id FIRST
+ * 2. Check for duplicate via correlation_id - if duplicate, return early (no DB insert)
  * 3. Find or create user (email OR phone matching)
- * 4. If duplicate: create duplicate record, return early
- * 5. If new: create lead record, send intro email to user
- * 6. Return response with speed-to-lead metrics and email status
+ * 4. Create lead record, send intro email to user
+ * 5. Return response with speed-to-lead metrics and email status
  */
 export async function POST(request: NextRequest) {
   const receivedAt = new Date();
@@ -41,74 +40,38 @@ export async function POST(request: NextRequest) {
 
     const angiLead = parseResult.data;
 
-    // Check for duplicate FIRST (before inserting)
+    // Check for duplicate FIRST (before creating user or lead)
     const existingLead = await db
       .select()
       .from(leads)
       .where(eq(leads.correlationId, angiLead.CorrelationId))
       .get();
 
-    // Find or create user
+    // If duplicate found, return early without creating anything
+    if (existingLead) {
+      console.log(
+        `[Duplicate Detected] Original: ${existingLead.id}, CorrelationId: ${angiLead.CorrelationId}`
+      );
+
+      const response: LeadResponse = {
+        success: true,
+        leadId: existingLead.id,
+        userId: existingLead.userId,
+        isDuplicate: true,
+        speedToLeadMs: null,
+        messageId: undefined,
+      };
+
+      return NextResponse.json(response, { status: 200 });
+    }
+
+    // Not a duplicate - find or create user
     const { user, isNew: isNewUser } = await findOrCreateUser(
       angiLead.Email,
       angiLead.PhoneNumber,
       angiLead.FirstName,
       angiLead.LastName
     );
-
-    // If duplicate found, create duplicate record and return
-    if (existingLead) {
-      const duplicateLeadId = uuid();
-
-      // Create a lead record marked as duplicate (with null correlationId to avoid constraint)
-      const duplicateLead: Lead = {
-        id: duplicateLeadId,
-        userId: user.id,
-        addressLine1: angiLead.PostalAddress.AddressFirstLine,
-        addressLine2: angiLead.PostalAddress.AddressSecondLine || null,
-        city: angiLead.PostalAddress.City,
-        state: angiLead.PostalAddress.State,
-        postalCode: angiLead.PostalAddress.PostalCode,
-        source: angiLead.Source,
-        description: angiLead.Description,
-        category: angiLead.Category,
-        urgency: angiLead.Urgency,
-        correlationId: null, // Set to null to avoid UNIQUE constraint
-        alAccountId: angiLead.ALAccountId,
-        status: "duplicate",
-        converted: false,
-        receivedAt,
-        processedAt: new Date(),
-      };
-
-      await db.insert(leads).values(duplicateLead);
-
-      // Create duplicate tracking record
-      await db.insert(duplicateLeads).values({
-        id: uuid(),
-        originalLeadId: existingLead.id,
-        duplicateLeadId: duplicateLeadId,
-        matchCriteria: "correlation_id",
-        detectedAt: new Date(),
-        rebateClaimed: false,
-        rebateStatus: null,
-      });
-
-      console.log(
-        `[Duplicate Detected] New: ${duplicateLeadId}, Original: ${existingLead.id}, CorrelationId: ${angiLead.CorrelationId}`
-      );
-
-      const response: LeadResponse = {
-        success: true,
-        leadId: duplicateLeadId,
-        userId: user.id,
-        isDuplicate: true,
-        speedToLeadMs: null,
-        messageId: undefined,
-      };
-
-      return NextResponse.json(response, { status: 201 });
-    }
 
     // Not a duplicate - create new lead
     const leadId = uuid();

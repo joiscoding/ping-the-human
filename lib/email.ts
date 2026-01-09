@@ -12,6 +12,7 @@ export interface SendEmailOptions {
   to: string | string[];
   subject: string;
   body: string;
+  html?: string;
   from?: string;
   replyTo?: string;
 }
@@ -37,7 +38,7 @@ export interface SendEmailResult {
 export async function sendEmail(
   options: SendEmailOptions
 ): Promise<SendEmailResult> {
-  const { to, subject, body, from = DEFAULT_FROM_EMAIL, replyTo } = options;
+  const { to, subject, body, html, from = DEFAULT_FROM_EMAIL, replyTo } = options;
 
   // Check if API key is configured
   if (!process.env.RESEND_API_KEY) {
@@ -56,6 +57,7 @@ export async function sendEmail(
       to: Array.isArray(to) ? to : [to],
       subject,
       text: body,
+      html,
       replyTo,
     });
 
