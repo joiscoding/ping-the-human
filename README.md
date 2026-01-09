@@ -1,6 +1,53 @@
-# Netic Lead Management System
+# Ping the Human
 
 A Next.js 15 application for receiving and managing leads from Angi (formerly Angie's List).
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                         │
+│  RECEIVE LEAD              DATA LAYER                         CONTACT                   │
+│                                                                                         │
+│  ┌──────────────┐         ┌──────────────────┐              ┌──────────────┐           │
+│  │    Angi      │         │   Data Mapper    │              │     GPT      │           │
+│  │              │   ───►  │                  │     ───►     │              │           │
+│  │ POST /v1/    │         │  validate / MoH  │              │   template   │           │
+│  │ lead/angi    │         └────────┬─────────┘              └──────┬───────┘           │
+│  └──────────────┘                  │                               │                   │
+│                                    ▼                               ▼                   │
+│  ┌ ─ ─ ─ ─ ─ ─ ┐         ┌──────────────────┐         ┌────────────────────┐          │
+│  │   Google    │         │       Zod        │         │   Email Drafting   │          │
+│  │             │         │                  │         │                    │          │
+│  │   Webhook   │         │ schema validation│         │  Hi [First Name],  │          │
+│  └ ─ ─ ─ ─ ─ ─ ┘         └────────┬─────────┘         │                    │          │
+│                                    │                   │  We can help with  │          │
+│                                    ▼                   │  [Category],       │          │
+│                          ┌─────────┴─────────┐        │  we have           │          │
+│                          │         │         │        │  availability      │          │
+│                          ▼         ▼         ▼        │  today.            │          │
+│                       ┌─────┐ ┌────────┐ ┌─────────┐  │                    │          │
+│                       │D1/  │ │ SQLite │ │Analytics│  │  CTA: book here /  │          │
+│                       │Edge │ │        │ │failed/  │  │       call now     │          │
+│                       │NoSQL│ │        │ │success  │  └────────────────────┘          │
+│                       └─────┘ └────────┘ └─────────┘                                   │
+│                                                                                         │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────┐     ┌─────────────────────────────┐
+│   Lead Quality Evaluation   │     │     Marketing Manager       │
+│                             │     │                             │
+│   • Consistency in format   │     │   • Location                │
+│   • Conversion rate         │     │   • Store/dine code         │
+│   • Response rate           │     │                             │
+└─────────────────────────────┘     └─────────────────────────────┘
+
+┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
+│  BONUS                                                          │
+│                                                                  │
+│  • Twilio (SMS)              • GPT Email                        │
+└ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘
+```
 
 ## Features
 
@@ -106,6 +153,66 @@ curl "http://localhost:3000/api/v1/lead?status=processed&limit=10"
 
 ## Database Schema
 
+```mermaid
+erDiagram
+    users {
+        uuid id PK
+        string email UK
+        string phone UK
+        string first_name
+        string last_name
+        timestamp created_at
+        timestamp updated_at
+    }
+    
+    leads {
+        uuid id PK
+        uuid user_id FK
+        string address_line1
+        string city
+        string state
+        string postal_code
+        string source
+        string description
+        string category
+        string urgency
+        string correlation_id UK
+        string al_account_id
+        timestamp received_at
+        timestamp processed_at
+        string status
+        boolean converted
+    }
+    
+    messages {
+        uuid id PK
+        uuid lead_id FK
+        string channel
+        string direction
+        string from_address
+        string to_address
+        string subject
+        text body
+        string status
+        timestamp created_at
+        timestamp sent_at
+    }
+    
+    duplicate_leads {
+        uuid id PK
+        uuid original_lead_id FK
+        uuid duplicate_lead_id FK
+        string match_criteria
+        timestamp detected_at
+        boolean rebate_claimed
+        string rebate_status
+    }
+    
+    users ||--o{ leads : has_many
+    leads ||--o{ messages : has_thread
+    leads ||--o{ duplicate_leads : tracks
+```
+
 ### Tables
 
 - **users** - Customer profiles (matched by email OR phone)
@@ -153,6 +260,8 @@ Use the generated URL (e.g., `https://xxxx.ngrok.io/api/v1/lead/angi`) as your w
 │   ├── schema.ts           # Drizzle table definitions
 │   ├── index.ts            # Database connection
 │   └── migrations/         # SQL migrations
+├── docs/
+│   └── plan.md             # Project planning documentation
 ├── lib/
 │   ├── schemas.ts          # Zod validation schemas
 │   ├── user-matcher.ts     # User matching logic
@@ -184,3 +293,5 @@ Use the generated URL (e.g., `https://xxxx.ngrok.io/api/v1/lead/angi`) as your w
 - [ ] UI dashboard for lead management
 - [ ] Actual email/SMS sending (Resend, Twilio)
 - [ ] Webhook for inbound message tracking
+- [ ] Google webhook integration
+- [ ] GPT-powered email personalization
