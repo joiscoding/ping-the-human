@@ -2,8 +2,9 @@ import { db } from "@/db";
 import { messages, type Message, type Lead, type User } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
+import { sendEmail } from "./email";
 
-const FROM_EMAIL = process.env.FROM_EMAIL || "netic@example.com";
+const FROM_EMAIL = process.env.FROM_EMAIL || "onboarding@resend.dev";
 const BOOKING_URL = process.env.BOOKING_URL || "http://localhost:3000/book";
 
 /**
@@ -141,4 +142,117 @@ export async function updateMessageStatus(
   }
 
   await db.update(messages).set(updates).where(eq(messages.id, messageId));
+}
+
+/**
+ * Get a single message by ID.
+ *
+ * @param messageId - The message ID
+ * @returns The message or null if not found
+ */
+export async function getMessage(messageId: string): Promise<Message | null> {
+  const message = await db
+    .select()
+    .from(messages)
+    .where(eq(messages.id, messageId))
+    .get();
+
+  return message || null;
+}
+
+export interface SendMessageResult {
+  success: boolean;
+  message?: Message;
+  error?: string;
+}
+
+/**
+ * Send a draft message via email.
+ * Updates the message status to 'sent' or 'failed' based on result.
+ *
+ * @param messageId - The ID of the message to send
+ * @returns Result with success status and updated message
+ */
+export async function sendMessage(messageId: string): Promise<SendMessageResult> {
+  // Get the message
+  const message = await getMessage(messageId);
+
+  if (!message) {
+    return {
+      success: false,
+      error: "Message not found",
+    };
+  }
+
+  // Check if message is in draft status
+  if (message.status !== "draft") {
+    return {
+      success: false,
+      error: `Message is not a draft (current status: ${message.status})`,
+    };
+  }
+
+  // Check if it's an email (we only support email sending for now)
+  if (message.channel !== "email") {
+    return {
+      success: false,
+      error: `Channel '${message.channel}' not supported for sending. Only 'email' is supported.`,
+    };
+  }
+
+  // Send the email
+  const emailResult = await sendEmail({
+    to: message.toAddress,
+    subject: message.subject || "(No Subject)",
+    body: message.body,
+    from: message.fromAddress,
+  });
+
+  if (emailResult.success) {
+    // Update message status to sent
+    await updateMessageStatus(messageId, "sent", emailResult.messageId);
+
+    // Get updated message
+    const updatedMessage = await getMessage(messageId);
+
+    console.log(
+      `[Messaging] Email sent successfully. Message ID: ${messageId}, Email ID: ${emailResult.messageId}`
+    );
+
+    return {
+      success: true,
+      message: updatedMessage || undefined,
+    };
+  } else {
+    // Update message status to failed
+    await updateMessageStatus(messageId, "failed");
+
+    console.error(
+      `[Messaging] Failed to send email. Message ID: ${messageId}, Error: ${emailResult.error}`
+    );
+
+    return {
+      success: false,
+      error: emailResult.error,
+    };
+  }
+}
+
+/**
+ * Draft and immediately send an intro message.
+ * Combines draftIntroMessage and sendMessage for immediate sending.
+ *
+ * @param lead - The lead to send the intro email to
+ * @param user - The user associated with the lead
+ * @returns Result with success status and message
+ */
+export async function sendIntroMessage(
+  lead: Lead,
+  user: User
+): Promise<SendMessageResult> {
+  // First draft the message
+  const message = await draftIntroMessage(lead, user);
+
+  // Then send it
+  return sendMessage(message.id);
 }
