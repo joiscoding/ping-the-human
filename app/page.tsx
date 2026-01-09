@@ -1,4 +1,5 @@
 import { LeadsTable } from "@/components/leads-table";
+import { StateHeatMap } from "@/components/state-heat-map";
 
 export default function Home() {
   return (
@@ -12,6 +13,11 @@ export default function Home() {
           <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
             View and manage incoming leads from Angi
           </p>
+        </div>
+
+        {/* State Heat Map */}
+        <div className="mb-8">
+          <StateHeatMap />
         </div>
 
         {/* Leads Table */}
