@@ -1,0 +1,1 @@
+ALTER TABLE `leads` ADD `speed_to_lead_ms` integer;

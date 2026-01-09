@@ -22,6 +22,13 @@
       "when": 1767939682999,
       "tag": "0002_tough_puppet_master",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1767940852686,
+      "tag": "0003_flawless_preak",
+      "breakpoints": true
     }
   ]
 }

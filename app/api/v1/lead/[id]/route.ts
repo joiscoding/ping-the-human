@@ -61,13 +61,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       (m) => m.direction === "outbound"
     ).length;
 
-    // Compute speed to lead
-    const speedToLeadMs =
-      lead.processedAt && lead.receivedAt
-        ? new Date(lead.processedAt).getTime() -
-          new Date(lead.receivedAt).getTime()
-        : null;
-
     // Get other leads from the same user (excluding current lead)
     let otherLeads: Array<{
       id: string;
@@ -99,8 +92,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       data: {
         lead: {
           ...lead,
-          // Computed fields
-          speedToLeadMs,
+          // Computed fields (speedToLeadMs is now stored in DB)
           messageCount,
           inboundCount,
           outboundCount,

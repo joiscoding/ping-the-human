@@ -99,17 +99,19 @@ export async function POST(request: NextRequest) {
 
     // Send intro message (draft + send email)
     const sendResult = await sendIntroMessage(newLead, user);
-    const processedAt = new Date();
+    
+    // Record time immediately after sending email (don't wait for network response)
+    const emailSentAt = new Date();
+    
+    // Calculate speed to lead (time from received to email sent)
+    const speedToLeadMs = emailSentAt.getTime() - receivedAt.getTime();
 
-    // Update lead status based on email result
+    // Update lead status based on email result, including speed to lead
     const newStatus = sendResult.success ? "processed" : "pending";
     await db
       .update(leads)
-      .set({ status: newStatus, processedAt })
+      .set({ status: newStatus, processedAt: emailSentAt, speedToLeadMs })
       .where(eq(leads.id, leadId));
-
-    // Calculate speed to lead (time from received to processed)
-    const speedToLeadMs = processedAt.getTime() - receivedAt.getTime();
 
     // Log email send result
     if (sendResult.success) {

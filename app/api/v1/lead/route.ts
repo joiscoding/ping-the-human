@@ -103,13 +103,6 @@ export async function GET(request: NextRequest) {
           )
           .get();
 
-        // Compute speed to lead
-        const speedToLeadMs =
-          lead.processedAt && lead.receivedAt
-            ? new Date(lead.processedAt).getTime() -
-              new Date(lead.receivedAt).getTime()
-            : null;
-
         return {
           ...lead,
           user: user
@@ -121,8 +114,7 @@ export async function GET(request: NextRequest) {
                 lastName: user.lastName,
               }
             : null,
-          // Computed fields
-          speedToLeadMs,
+          // Computed fields (speedToLeadMs is now stored in DB)
           messageCount: messageCount?.count || 0,
           hasResponse: (inboundCount?.count || 0) > 0,
         };

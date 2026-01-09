@@ -37,6 +37,7 @@ export const leads = sqliteTable("leads", {
   // Speed-to-lead tracking
   receivedAt: integer("received_at", { mode: "timestamp" }).notNull(),
   processedAt: integer("processed_at", { mode: "timestamp" }),
+  speedToLeadMs: integer("speed_to_lead_ms"), // Time from received to email sent (in milliseconds)
 });
 
 // Messages table - email and SMS threads for each lead
