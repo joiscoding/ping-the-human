@@ -6,7 +6,7 @@
  * 2. Sends the draft message via /api/v1/message/{id}/send
  * 3. You can verify the email arrives in your inbox
  *
- * Usage: npx tsx scripts/test-email-e2e.ts
+ * Usage: pnpm tsx scripts/test-email-e2e.ts
  */
 
 const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
@@ -70,7 +70,7 @@ async function main() {
     console.log("");
   } catch (error) {
     console.error("❌ Error creating lead:", error);
-    console.error("   Make sure the dev server is running: npm run dev");
+    console.error("   Make sure the dev server is running: pnpm dev");
     process.exit(1);
   }
 

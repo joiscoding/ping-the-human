@@ -6,7 +6,7 @@
  * - 2 leads from same user (same email/phone - matches existing user)
  * - 2 unique leads (creates new users)
  *
- * Run with: npm run test:demo
+ * Run with: pnpm test:demo
  */
 
 import type { AngiLead } from "@/lib/schemas";

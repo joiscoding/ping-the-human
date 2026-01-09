@@ -1,6 +1,6 @@
 /**
  * Clear all database tables
- * Run with: npx tsx scripts/clear-db.ts
+ * Run with: pnpm tsx scripts/clear-db.ts
  */
 
 import { db } from "../db";

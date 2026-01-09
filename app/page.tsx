@@ -77,7 +77,7 @@ export default function Home() {
         <p className="text-sm text-zinc-500">
           View database:{" "}
           <code className="rounded bg-zinc-100 px-2 py-1 dark:bg-zinc-800">
-            npm run db:studio
+            pnpm db:studio
           </code>
         </p>
       </main>

@@ -72,22 +72,22 @@ A Next.js 15 application for receiving and managing leads from Angi (formerly An
 ### Prerequisites
 
 - Node.js 18+
-- npm
+- pnpm
 
 ### Installation
 
 ```bash
 # Install dependencies
-npm install
+pnpm install
 
 # Generate database migrations
-npm run db:generate
+pnpm db:generate
 
 # Run migrations
-npm run db:migrate
+pnpm db:migrate
 
 # Start development server
-npm run dev
+pnpm dev
 ```
 
 The app will be available at [http://localhost:3000](http://localhost:3000).
@@ -223,20 +223,20 @@ erDiagram
 ### View Database
 
 ```bash
-npm run db:studio
+pnpm db:studio
 ```
 
 ## Testing
 
 ```bash
 # Run all tests
-npm test
+pnpm test
 
 # Run tests once
-npm run test:run
+pnpm test:run
 
 # Run with coverage
-npm run test:coverage
+pnpm test:coverage
 ```
 
 ## ngrok Setup (for Angi testing)

@@ -7,7 +7,7 @@
  * - 3 from the same person (same email/phone)
  * - 4 distinct leads
  *
- * Run with: npm run test:mock
+ * Run with: pnpm test:mock
  */
 
 import {
