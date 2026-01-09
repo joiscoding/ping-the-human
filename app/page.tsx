@@ -1,64 +1,85 @@
-import Image from "next/image";
-
 export default function Home() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-zinc-900">
+      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-center gap-8 py-16 px-8">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <h1 className="text-4xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+            Netic Lead Management
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="max-w-md text-lg text-zinc-600 dark:text-zinc-400">
+            API backend for receiving and managing leads from Angi
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        <div className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <h2 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+            API Endpoints
+          </h2>
+          <div className="space-y-3 font-mono text-sm">
+            <div className="flex items-center gap-2">
+              <span className="rounded bg-green-100 px-2 py-1 text-xs font-medium text-green-700 dark:bg-green-900 dark:text-green-300">
+                POST
+              </span>
+              <code className="text-zinc-700 dark:text-zinc-300">
+                /api/v1/lead/angi
+              </code>
+            </div>
+            <p className="pl-14 text-xs text-zinc-500">
+              Receive leads from Angi webhook
+            </p>
+
+            <div className="flex items-center gap-2">
+              <span className="rounded bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                GET
+              </span>
+              <code className="text-zinc-700 dark:text-zinc-300">
+                /api/v1/lead
+              </code>
+            </div>
+            <p className="pl-14 text-xs text-zinc-500">
+              List leads with filtering and pagination
+            </p>
+          </div>
         </div>
+
+        <div className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <h2 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+            Quick Test
+          </h2>
+          <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-400">
+            Send a test lead using curl:
+          </p>
+          <pre className="overflow-x-auto rounded bg-zinc-100 p-3 text-xs text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200">
+{`curl -X POST http://localhost:3000/api/v1/lead/angi \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "FirstName": "Bob",
+    "LastName": "Builder",
+    "PhoneNumber": "5554332646",
+    "PostalAddress": {
+      "AddressFirstLine": "123 Main St.",
+      "AddressSecondLine": "",
+      "City": "Indianapolis",
+      "State": "IN",
+      "PostalCode": "46203"
+    },
+    "Email": "bob.builder@gmail.com",
+    "Source": "Angie\\'s List Quote Request",
+    "Description": "Need house cleaning",
+    "Category": "House Cleaning",
+    "Urgency": "This Week",
+    "CorrelationId": "61a7de56-dba3-4e59-8e2a-3fa827f84f7f",
+    "ALAccountId": "123456"
+  }'`}
+          </pre>
+        </div>
+
+        <p className="text-sm text-zinc-500">
+          View database:{" "}
+          <code className="rounded bg-zinc-100 px-2 py-1 dark:bg-zinc-800">
+            npm run db:studio
+          </code>
+        </p>
       </main>
     </div>
   );
