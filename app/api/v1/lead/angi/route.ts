@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { leads, type Lead } from "@/db/schema";
+import { leads, duplicateLeads, type Lead } from "@/db/schema";
 import { AngiLeadSchema, type LeadResponse } from "@/lib/schemas";
 import { findOrCreateUser } from "@/lib/user-matcher";
-import { checkForDuplicate } from "@/lib/duplicate-detector";
 import { draftIntroMessage } from "@/lib/messaging";
 import { v4 as uuid } from "uuid";
 import { eq } from "drizzle-orm";
@@ -15,10 +14,10 @@ import { eq } from "drizzle-orm";
  *
  * Flow:
  * 1. Validate incoming payload with Zod
- * 2. Find or create user (email OR phone matching)
- * 3. Create lead record
- * 4. Check for duplicate via correlation_id
- * 5. If not duplicate, draft intro email
+ * 2. Check for duplicate via correlation_id FIRST
+ * 3. Find or create user (email OR phone matching)
+ * 4. If duplicate: create duplicate record, return early
+ * 5. If new: create lead record, draft intro email
  * 6. Return response with speed-to-lead metrics
  */
 export async function POST(request: NextRequest) {
@@ -42,6 +41,13 @@ export async function POST(request: NextRequest) {
 
     const angiLead = parseResult.data;
 
+    // Check for duplicate FIRST (before inserting)
+    const existingLead = await db
+      .select()
+      .from(leads)
+      .where(eq(leads.correlationId, angiLead.CorrelationId))
+      .get();
+
     // Find or create user
     const { user, isNew: isNewUser } = await findOrCreateUser(
       angiLead.Email,
@@ -50,7 +56,61 @@ export async function POST(request: NextRequest) {
       angiLead.LastName
     );
 
-    // Create lead record
+    // If duplicate found, create duplicate record and return
+    if (existingLead) {
+      const duplicateLeadId = uuid();
+
+      // Create a lead record marked as duplicate (with null correlationId to avoid constraint)
+      const duplicateLead: Lead = {
+        id: duplicateLeadId,
+        userId: user.id,
+        addressLine1: angiLead.PostalAddress.AddressFirstLine,
+        addressLine2: angiLead.PostalAddress.AddressSecondLine || null,
+        city: angiLead.PostalAddress.City,
+        state: angiLead.PostalAddress.State,
+        postalCode: angiLead.PostalAddress.PostalCode,
+        source: angiLead.Source,
+        description: angiLead.Description,
+        category: angiLead.Category,
+        urgency: angiLead.Urgency,
+        correlationId: null, // Set to null to avoid UNIQUE constraint
+        alAccountId: angiLead.ALAccountId,
+        status: "duplicate",
+        converted: false,
+        receivedAt,
+        processedAt: new Date(),
+      };
+
+      await db.insert(leads).values(duplicateLead);
+
+      // Create duplicate tracking record
+      await db.insert(duplicateLeads).values({
+        id: uuid(),
+        originalLeadId: existingLead.id,
+        duplicateLeadId: duplicateLeadId,
+        matchCriteria: "correlation_id",
+        detectedAt: new Date(),
+        rebateClaimed: false,
+        rebateStatus: null,
+      });
+
+      console.log(
+        `[Duplicate Detected] New: ${duplicateLeadId}, Original: ${existingLead.id}, CorrelationId: ${angiLead.CorrelationId}`
+      );
+
+      const response: LeadResponse = {
+        success: true,
+        leadId: duplicateLeadId,
+        userId: user.id,
+        isDuplicate: true,
+        speedToLeadMs: null,
+        messageId: undefined,
+      };
+
+      return NextResponse.json(response, { status: 201 });
+    }
+
+    // Not a duplicate - create new lead
     const leadId = uuid();
     const newLead: Lead = {
       id: leadId,
@@ -74,44 +134,30 @@ export async function POST(request: NextRequest) {
 
     await db.insert(leads).values(newLead);
 
-    // Check for duplicate
-    const duplicateCheck = await checkForDuplicate(
-      angiLead.CorrelationId,
-      leadId
-    );
+    // Draft intro message
+    const message = await draftIntroMessage(newLead, user);
+    const processedAt = new Date();
 
-    let messageId: string | undefined;
-    let processedAt: Date | null = null;
-
-    if (!duplicateCheck.isDuplicate) {
-      // Draft intro message for non-duplicate leads
-      const message = await draftIntroMessage(newLead, user);
-      messageId = message.id;
-      processedAt = new Date();
-
-      // Update lead as processed
-      await db
-        .update(leads)
-        .set({ status: "processed", processedAt })
-        .where(eq(leads.id, leadId));
-    }
+    // Update lead as processed
+    await db
+      .update(leads)
+      .set({ status: "processed", processedAt })
+      .where(eq(leads.id, leadId));
 
     // Calculate speed to lead (time from received to processed)
-    const speedToLeadMs = processedAt
-      ? processedAt.getTime() - receivedAt.getTime()
-      : null;
+    const speedToLeadMs = processedAt.getTime() - receivedAt.getTime();
 
     const response: LeadResponse = {
       success: true,
       leadId,
       userId: user.id,
-      isDuplicate: duplicateCheck.isDuplicate,
+      isDuplicate: false,
       speedToLeadMs,
-      messageId,
+      messageId: message.id,
     };
 
     console.log(
-      `[Lead Received] ID: ${leadId}, User: ${user.id} (${isNewUser ? "new" : "existing"}), Duplicate: ${duplicateCheck.isDuplicate}, Speed: ${speedToLeadMs}ms`
+      `[Lead Received] ID: ${leadId}, User: ${user.id} (${isNewUser ? "new" : "existing"}), Speed: ${speedToLeadMs}ms`
     );
 
     return NextResponse.json(response, { status: 201 });
