@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge, getStatusVariant } from "@/components/ui/badge";
 import { MessageList } from "@/components/message-list";
 import { CustomerPanel } from "@/components/customer-panel";
 
@@ -220,7 +219,6 @@ export function LeadDetail({ leadId }: LeadDetailProps) {
                 <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
                   {lead.category || "Lead Request"}
                 </h1>
-                <Badge variant={getStatusVariant(lead.status)}>{lead.status}</Badge>
               </div>
 
               {lead.description && (

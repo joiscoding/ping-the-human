@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge, getStatusVariant } from "@/components/ui/badge";
 
 interface User {
   id: string;
@@ -132,13 +131,8 @@ export function CustomerPanel({ user, otherLeads }: CustomerPanelProps) {
                   href={`/leads/${lead.id}`}
                   className="block rounded-lg border border-zinc-200 p-3 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                      {lead.category || "Unknown"}
-                    </span>
-                    <Badge variant={getStatusVariant(lead.status)} className="text-xs">
-                      {lead.status}
-                    </Badge>
+                  <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                    {lead.category || "Unknown"}
                   </div>
                   <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                     {formatDate(lead.receivedAt)}

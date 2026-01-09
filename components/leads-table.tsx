@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Table,
@@ -53,6 +53,9 @@ interface LeadsResponse {
   };
 }
 
+type SortField = "receivedAt" | "customer" | "category" | "state" | "speedToLeadMs" | "messageCount";
+type SortOrder = "asc" | "desc";
+
 function formatDate(dateString: string): string {
   const date = new Date(dateString);
   return date.toLocaleDateString("en-US", {
@@ -77,33 +80,53 @@ function getCustomerName(user: LeadWithUser["user"]): string {
   return user.email || "Unknown";
 }
 
+function getCategoryName(category: string | null): string {
+  if (!category) return "—";
+  // Category format is "City – Service Type", extract just the service type
+  const parts = category.split(" – ");
+  return parts.length > 1 ? parts[1] : category;
+}
+
+function SortIcon({ field, currentField, order }: { field: SortField; currentField: SortField; order: SortOrder }) {
+  if (field !== currentField) {
+    return (
+      <svg className="ml-1 h-4 w-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+      </svg>
+    );
+  }
+  return order === "asc" ? (
+    <svg className="ml-1 h-4 w-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+    </svg>
+  ) : (
+    <svg className="ml-1 h-4 w-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+    </svg>
+  );
+}
+
 export function LeadsTable() {
   const router = useRouter();
   const [leads, setLeads] = useState<LeadWithUser[]>([]);
-  const [pagination, setPagination] = useState({
-    total: 0,
-    limit: 50,
-    offset: 0,
-    hasMore: false,
-  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sortField, setSortField] = useState<SortField>("receivedAt");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const fetchLeads = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const params = new URLSearchParams();
-      params.set("limit", String(pagination.limit));
-      params.set("offset", String(pagination.offset));
-
-      const response = await fetch(`/api/v1/lead?${params.toString()}`);
+      // Fetch all leads (or a reasonable max) for client-side sorting
+      const response = await fetch(`/api/v1/lead?limit=100`);
       const data: LeadsResponse = await response.json();
 
       if (data.success) {
         setLeads(data.data);
-        setPagination(data.pagination);
       } else {
         setError("Failed to fetch leads");
       }
@@ -112,36 +135,85 @@ export function LeadsTable() {
     } finally {
       setLoading(false);
     }
-  }, [pagination.limit, pagination.offset]);
+  }, []);
 
   useEffect(() => {
     fetchLeads();
   }, [fetchLeads]);
+
+  // Sort leads client-side
+  const sortedLeads = useMemo(() => {
+    const sorted = [...leads].sort((a, b) => {
+      let aVal: string | number | null;
+      let bVal: string | number | null;
+
+      switch (sortField) {
+        case "receivedAt":
+          aVal = new Date(a.receivedAt).getTime();
+          bVal = new Date(b.receivedAt).getTime();
+          break;
+        case "customer":
+          aVal = getCustomerName(a.user).toLowerCase();
+          bVal = getCustomerName(b.user).toLowerCase();
+          break;
+        case "category":
+          aVal = getCategoryName(a.category).toLowerCase();
+          bVal = getCategoryName(b.category).toLowerCase();
+          break;
+        case "state":
+          aVal = (a.state || "").toLowerCase();
+          bVal = (b.state || "").toLowerCase();
+          break;
+        case "speedToLeadMs":
+          aVal = a.speedToLeadMs ?? Infinity;
+          bVal = b.speedToLeadMs ?? Infinity;
+          break;
+        case "messageCount":
+          aVal = a.messageCount;
+          bVal = b.messageCount;
+          break;
+        default:
+          return 0;
+      }
+
+      if (aVal < bVal) return sortOrder === "asc" ? -1 : 1;
+      if (aVal > bVal) return sortOrder === "asc" ? 1 : -1;
+      return 0;
+    });
+    return sorted;
+  }, [leads, sortField, sortOrder]);
+
+  // Paginate sorted leads
+  const paginatedLeads = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return sortedLeads.slice(start, start + itemsPerPage);
+  }, [sortedLeads, currentPage]);
+
+  const totalPages = Math.ceil(sortedLeads.length / itemsPerPage);
+  const showingStart = sortedLeads.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
+  const showingEnd = Math.min(currentPage * itemsPerPage, sortedLeads.length);
+
+  const handleSort = (field: SortField) => {
+    if (field === sortField) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortOrder("asc");
+    }
+    setCurrentPage(1); // Reset to first page on sort change
+  };
 
   const handleRowClick = (leadId: string) => {
     router.push(`/leads/${leadId}`);
   };
 
   const handlePreviousPage = () => {
-    setPagination((prev) => ({
-      ...prev,
-      offset: Math.max(0, prev.offset - prev.limit),
-    }));
+    setCurrentPage((prev) => Math.max(1, prev - 1));
   };
 
   const handleNextPage = () => {
-    if (pagination.hasMore) {
-      setPagination((prev) => ({
-        ...prev,
-        offset: prev.offset + prev.limit,
-      }));
-    }
+    setCurrentPage((prev) => Math.min(totalPages, prev + 1));
   };
-
-  const currentPage = Math.floor(pagination.offset / pagination.limit) + 1;
-  const totalPages = Math.ceil(pagination.total / pagination.limit);
-  const showingStart = pagination.total > 0 ? pagination.offset + 1 : 0;
-  const showingEnd = Math.min(pagination.offset + pagination.limit, pagination.total);
 
   return (
     <Card className="overflow-hidden">
@@ -202,16 +274,64 @@ export function LeadsTable() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Received</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>State</TableHead>
-                <TableHead>Speed</TableHead>
-                <TableHead className="text-center">Msgs</TableHead>
+                <TableHead
+                  className="cursor-pointer select-none hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  onClick={() => handleSort("receivedAt")}
+                >
+                  <span className="inline-flex items-center">
+                    Received
+                    <SortIcon field="receivedAt" currentField={sortField} order={sortOrder} />
+                  </span>
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer select-none hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  onClick={() => handleSort("customer")}
+                >
+                  <span className="inline-flex items-center">
+                    Customer
+                    <SortIcon field="customer" currentField={sortField} order={sortOrder} />
+                  </span>
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer select-none hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  onClick={() => handleSort("category")}
+                >
+                  <span className="inline-flex items-center">
+                    Category
+                    <SortIcon field="category" currentField={sortField} order={sortOrder} />
+                  </span>
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer select-none hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  onClick={() => handleSort("state")}
+                >
+                  <span className="inline-flex items-center">
+                    State
+                    <SortIcon field="state" currentField={sortField} order={sortOrder} />
+                  </span>
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer select-none hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  onClick={() => handleSort("speedToLeadMs")}
+                >
+                  <span className="inline-flex items-center">
+                    Speed
+                    <SortIcon field="speedToLeadMs" currentField={sortField} order={sortOrder} />
+                  </span>
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer select-none text-center hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  onClick={() => handleSort("messageCount")}
+                >
+                  <span className="inline-flex items-center justify-center">
+                    Msgs
+                    <SortIcon field="messageCount" currentField={sortField} order={sortOrder} />
+                  </span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {leads.map((lead) => (
+              {paginatedLeads.map((lead) => (
                 <TableRow
                   key={lead.id}
                   clickable
@@ -229,12 +349,7 @@ export function LeadsTable() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <div>{lead.category || "—"}</div>
-                    {lead.city && (
-                      <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                        {lead.city}
-                      </div>
-                    )}
+                    {getCategoryName(lead.category)}
                   </TableCell>
                   <TableCell>
                     {lead.state || "—"}
@@ -261,12 +376,12 @@ export function LeadsTable() {
           {/* Pagination */}
           <div className="flex items-center justify-between border-t border-zinc-200 bg-zinc-50/50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900/50">
             <p className="text-sm text-zinc-600 dark:text-zinc-400">
-              Showing {showingStart}–{showingEnd} of {pagination.total}
+              Showing {showingStart}–{showingEnd} of {sortedLeads.length}
             </p>
             <div className="flex items-center gap-2">
               <button
                 onClick={handlePreviousPage}
-                disabled={pagination.offset === 0}
+                disabled={currentPage === 1}
                 className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
               >
                 Previous
@@ -276,7 +391,7 @@ export function LeadsTable() {
               </span>
               <button
                 onClick={handleNextPage}
-                disabled={!pagination.hasMore}
+                disabled={currentPage >= totalPages}
                 className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
               >
                 Next

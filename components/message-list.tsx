@@ -81,29 +81,12 @@ function MessageCard({ message }: { message: Message }) {
         {message.body}
       </div>
 
-      {/* Status */}
-      <div className="mt-3 flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-500">
-        <span
-          className={cn(
-            "inline-flex items-center rounded-full px-2 py-0.5",
-            message.status === "sent" &&
-              "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-            message.status === "delivered" &&
-              "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-            message.status === "draft" &&
-              "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
-            message.status === "failed" &&
-              "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-            message.status === "received" &&
-              "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400"
-          )}
-        >
-          {message.status}
-        </span>
-        {message.sentAt && (
-          <span>Sent: {formatDateTime(message.sentAt)}</span>
-        )}
-      </div>
+      {/* Sent timestamp */}
+      {message.sentAt && (
+        <div className="mt-3 text-xs text-zinc-500 dark:text-zinc-500">
+          Sent: {formatDateTime(message.sentAt)}
+        </div>
+      )}
     </div>
   );
 }

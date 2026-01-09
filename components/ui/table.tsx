@@ -8,7 +8,7 @@ interface TableProps {
 export function Table({ children, className }: TableProps) {
   return (
     <div className="overflow-x-auto">
-      <table className={cn("w-full text-sm", className)}>{children}</table>
+      <table className={cn("w-full border-collapse text-sm", className)}>{children}</table>
     </div>
   );
 }
@@ -37,7 +37,7 @@ interface TableBodyProps {
 }
 
 export function TableBody({ children, className }: TableBodyProps) {
-  return <tbody className={cn("divide-y divide-zinc-200 dark:divide-zinc-800", className)}>{children}</tbody>;
+  return <tbody className={cn("", className)}>{children}</tbody>;
 }
 
 interface TableRowProps {
@@ -51,7 +51,7 @@ export function TableRow({ children, className, onClick, clickable }: TableRowPr
   return (
     <tr
       className={cn(
-        "transition-colors",
+        "border-b border-zinc-200 dark:border-zinc-800",
         clickable && "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50",
         className
       )}
@@ -65,15 +65,17 @@ export function TableRow({ children, className, onClick, clickable }: TableRowPr
 interface TableHeadProps {
   children: React.ReactNode;
   className?: string;
+  onClick?: () => void;
 }
 
-export function TableHead({ children, className }: TableHeadProps) {
+export function TableHead({ children, className, onClick }: TableHeadProps) {
   return (
     <th
       className={cn(
         "px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400",
         className
       )}
+      onClick={onClick}
     >
       {children}
     </th>
